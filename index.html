@@ -1,303 +1,111 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Weekly Plan slot alerts</title>
-
 <style>
-:root {
-  --purple: #251044;
-  --pink: #f050f8;
-  --pink-hover: #e33bea;
-  --lavender: #f6effa;
-  --background: #fbf9fc;
-  --border: #e9e2ed;
-  --text: #251044;
-  --muted: #766d80;
-  --green: #238451;
-  --red: #c03950;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  font-family: system-ui, sans-serif;
-  max-width: 560px;
-  margin: 40px auto;
-  padding: 0 16px;
-  line-height: 1.5;
-  color: var(--text);
-  background: var(--background);
-}
-
-h2 {
-  font-size: 27px;
-  font-weight: 800;
-  letter-spacing: -1px;
-  line-height: 1.2;
-  margin-bottom: 12px;
-  color: var(--purple);
-}
-
-p {
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.box {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 18px;
-  margin: 16px 0;
-  background: #fff;
-}
-
-.box b {
-  color: var(--purple);
-  font-size: 15px;
-  font-weight: 750;
-}
-
-button {
-  padding: 11px 18px;
-  border: 0;
-  border-radius: 30px;
-  background: var(--pink);
-  color: var(--purple);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background .2s ease, transform .2s ease;
-}
-
-button:hover {
-  background: var(--pink-hover);
-  transform: translateY(-1px);
-}
-
-button:active {
-  transform: translateY(0);
-}
-
-button:disabled {
-  opacity: .5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-textarea {
-  width: 100%;
-  box-sizing: border-box;
-  height: 90px;
-  margin: 8px 0 12px;
-  padding: 10px;
-  font-family: monospace;
-  font-size: 12px;
-  color: var(--purple);
-  background: #fbf9fc;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  resize: vertical;
-  outline: none;
-}
-
-textarea:focus {
-  border-color: var(--pink);
-}
-
-#msg {
-  margin-top: 12px;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.err {
-  color: var(--red);
-}
-
-.ok {
-  color: var(--green);
-}
-
-#step2 {
-  background: var(--lavender);
-  border-color: #eee0f3;
-}
-
-#copy {
-  background: var(--purple);
-  color: #fff;
-}
-
-#copy:hover {
-  background: #40215f;
-}
-
-@media(max-width: 600px) {
-  body {
-    margin: 28px auto;
-  }
-}
+  body{font-family:system-ui,sans-serif;max-width:560px;margin:40px auto;padding:0 16px;line-height:1.5;color:#222}
+  button{padding:10px 16px;border:0;border-radius:8px;background:#e8632b;color:#fff;font-size:1rem;cursor:pointer}
+  button:disabled{opacity:.5} textarea{width:100%;box-sizing:border-box;height:90px;margin:8px 0;font-family:monospace}
+  .box{border:1px solid #ddd;border-radius:10px;padding:14px;margin:14px 0} .err{color:#c0392b} .ok{color:#1e8449}
 </style>
 </head>
-
 <body>
-
-<h2>Weekly Plan slot alerts</h2>
-
-<p>
-This page lets your browser receive the 08:00 / 08:30 … status notifications.
-It stores nothing on a server.
-</p>
+<h2>🔔 Weekly Plan slot alerts</h2>
+<p>This page helps you enable or remove optional Weekly Plan browser notifications. Enabling them stores your browser push subscription in the company's Google Apps Script project, linked to your signed-in work account, after you paste the code into the portal. The subscription contains a push endpoint and encryption keys. The browser's push provider processes delivery metadata. Notification content includes your current and next 30-minute planned activities and may be visible on your device lock screen.</p>
 
 <div class="box">
-  <b>Step 1</b> – allow notifications
-  <br><br>
+  <b>Step 1</b> – allow notifications in this browser<br><br>
   <button id="go">Allow notifications</button>
   <div id="msg"></div>
 </div>
 
 <div class="box" id="step2" hidden>
   <b>Step 2</b> – the code is copied automatically. If not, copy it here and paste it into the portal
-
   <textarea id="code" readonly></textarea>
-
   <button id="copy">Copy code</button>
 </div>
 
 <script>
 (function () {
   var msg = document.getElementById('msg');
-  function say(t, cls) {
-    msg.className = cls || '';
-    msg.textContent = t;
+  function say(t, cls) { msg.className = cls || ''; msg.textContent = t; }
+  function b64uToBytes(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; var r = atob(s), a = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) a[i] = r.charCodeAt(i); return a; }
+  function bytesToB64u(buf) { var b = new Uint8Array(buf), s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+
+  // A Turn off action is opened from the portal. Remove the browser-side subscription too.
+  var hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+  if (hashParams.get('action') === 'unsubscribe') {
+    (async function () {
+      try {
+        var regOff = await navigator.serviceWorker.register('sw.js');
+        await navigator.serviceWorker.ready;
+        var existing = await regOff.pushManager.getSubscription();
+        if (existing) {
+          var removed = await existing.unsubscribe();
+          if (!removed) throw new Error('The browser did not confirm removal.');
+        }
+        try { localStorage.removeItem('slotKey'); } catch (e) {}
+        say(existing ? 'Browser subscription removed. The portal is also removing the server registration. You can close this window.' : 'No browser subscription was found. The portal is removing the server registration. You can close this window.', 'ok');
+        document.getElementById('go').disabled = true;
+      } catch (e) {
+        say('Could not remove the browser subscription automatically: ' + e.message + '. Revoke notification permission in your browser site settings.', 'err');
+      }
+    })();
+    return;
   }
 
-  function b64uToBytes(s) {
-    s = s.replace(/-/g, '+').replace(/_/g, '/');
-    while (s.length % 4) s += '=';
-    var r = atob(s), a = new Uint8Array(r.length);
-    for (var i = 0; i < r.length; i++) a[i] = r.charCodeAt(i);
-    return a;
-  }
-
-  function bytesToB64u(buf) {
-    var b = new Uint8Array(buf), s = '';
-    for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
-    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
-
+  // The portal opens this page as  .../#k=<server public key>  ; remember it for later visits.
   var m = location.hash.match(/k=([A-Za-z0-9_-]+)/);
-  if (m) {
-    try { localStorage.setItem('slotKey', m[1]); } catch (e) {}
-    history.replaceState(null, '', location.pathname);
-  }
-
-  var key = null;
-  try { key = localStorage.getItem('slotKey'); } catch (e) {}
+  if (m) { try { localStorage.setItem('slotKey', m[1]); } catch (e) {} history.replaceState(null, '', location.pathname); }
+  var key = null; try { key = localStorage.getItem('slotKey'); } catch (e) {}
 
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     say('This browser does not support push notifications. Use a current Chrome, Edge or Firefox (on iPhone: add this page to the Home Screen first).', 'err');
-    document.getElementById('go').disabled = true;
-    return;
+    document.getElementById('go').disabled = true; return;
   }
-
-  if (!key) {
-    say('Open this page from the bell button in the portal so it receives the server key.', 'err');
-    document.getElementById('go').disabled = true;
-    return;
-  }
+  if (!key) { say('Open this page from the bell button in the portal so it receives the server key.', 'err'); document.getElementById('go').disabled = true; return; }
 
   var go = document.getElementById('go');
-  var popup = !!window.opener || window.name === 'slotalert';
+  var popup = !!window.opener || window.name === 'slotalert';   // opened by the portal's button
 
   async function copyText(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch (e) {}
-
-    try {
-      var t = document.getElementById('code');
-      t.removeAttribute('readonly');
-      t.focus();
-      t.select();
-      var ok = document.execCommand('copy');
-      t.setAttribute('readonly', '');
-      return !!ok;
-    } catch (e) {
-      return false;
-    }
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* fall back below */ }
+    try { var t = document.getElementById('code'); t.removeAttribute('readonly'); t.focus(); t.select(); var ok = document.execCommand('copy'); t.setAttribute('readonly', ''); return !!ok; } catch (e) { return false; }
   }
 
   go.onclick = async function () {
     try {
       say('Working…');
-
       var reg = await navigator.serviceWorker.register('sw.js');
       await navigator.serviceWorker.ready;
-
-      if ((await Notification.requestPermission()) !== 'granted') {
-        say('Notifications were blocked. Click the lock icon in the address bar, allow notifications, then try again.', 'err');
-        return;
-      }
-
+      if ((await Notification.requestPermission()) !== 'granted') { say('Notifications were blocked. Click the lock icon in the address bar, allow notifications, then try again.', 'err'); return; }
       var old = await reg.pushManager.getSubscription();
-      if (old) await old.unsubscribe();
-
-      var sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: b64uToBytes(key)
-      });
-
+      if (old) await old.unsubscribe(); // always a fresh subscription tied to the current server key
+      var sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(key) });
       var j = sub.toJSON();
-
-      var code = btoa(JSON.stringify({
-        e: j.endpoint,
-        p: j.keys.p256dh,
-        a: j.keys.auth
-      })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
+      var code = btoa(JSON.stringify({ e: j.endpoint, p: j.keys.p256dh, a: j.keys.auth })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       document.getElementById('code').value = code;
       document.getElementById('step2').hidden = false;
-
       var copied = await copyText(code);
-
       if (copied && popup) {
         say('Allowed. The code is copied - paste it into the portal. Closing this window…', 'ok');
-        setTimeout(function () {
-          window.close();
-        }, 1500);
+        setTimeout(function () { window.close(); }, 1500);
       } else if (copied) {
         say('Allowed. The code is copied - paste it into the portal.', 'ok');
       } else {
-        say('Allowed. Press "Copy code" below, then paste it into the portal.', 'ok');
+        say('Allowed. Press "Copy code" below, then paste it into the portal.', 'ok'); // never close if the copy failed
       }
-
-    } catch (e) {
-      say('Failed: ' + e.message, 'err');
-    }
+    } catch (e) { say('Failed: ' + e.message, 'err'); }
   };
 
   document.getElementById('copy').onclick = function () {
-    var t = document.getElementById('code');
-    t.select();
-
-    try {
-      navigator.clipboard.writeText(t.value);
-    } catch (e) {
-      document.execCommand('copy');
-    }
-
+    var t = document.getElementById('code'); t.select();
+    try { navigator.clipboard.writeText(t.value); } catch (e) { document.execCommand('copy'); }
     this.textContent = 'Copied';
   };
 })();
 </script>
-
 </body>
 </html>
