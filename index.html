@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly Plan slot alerts</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:560px;margin:40px auto;padding:0 16px;line-height:1.5;color:#222}
+  button{padding:10px 16px;border:0;border-radius:8px;background:#e8632b;color:#fff;font-size:1rem;cursor:pointer}
+  button:disabled{opacity:.5} textarea{width:100%;box-sizing:border-box;height:90px;margin:8px 0;font-family:monospace}
+  .box{border:1px solid #ddd;border-radius:10px;padding:14px;margin:14px 0} .err{color:#c0392b} .ok{color:#1e8449}
+</style>
+</head>
+<body>
+<h2>🔔 Weekly Plan slot alerts</h2>
+<p>This page lets your browser receive the 08:00 / 08:30 … status notifications. It stores nothing on a server.</p>
+
+<div class="box">
+  <b>Step 1</b> – allow notifications in this browser<br><br>
+  <button id="go">Allow notifications</button>
+  <div id="msg"></div>
+</div>
+
+<div class="box" id="step2" hidden>
+  <b>Step 2</b> – copy this code and paste it into the portal (bell button → "Paste code")
+  <textarea id="code" readonly></textarea>
+  <button id="copy">Copy code</button>
+</div>
+
+<script>
+(function () {
+  var msg = document.getElementById('msg');
+  function say(t, cls) { msg.className = cls || ''; msg.textContent = t; }
+  function b64uToBytes(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; var r = atob(s), a = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) a[i] = r.charCodeAt(i); return a; }
+  function bytesToB64u(buf) { var b = new Uint8Array(buf), s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+
+  // The portal opens this page as  .../#k=<server public key>  ; remember it for later visits.
+  var m = location.hash.match(/k=([A-Za-z0-9_-]+)/);
+  if (m) { try { localStorage.setItem('slotKey', m[1]); } catch (e) {} history.replaceState(null, '', location.pathname); }
+  var key = null; try { key = localStorage.getItem('slotKey'); } catch (e) {}
+
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    say('This browser does not support push notifications. Use a current Chrome, Edge or Firefox (on iPhone: add this page to the Home Screen first).', 'err');
+    document.getElementById('go').disabled = true; return;
+  }
+  if (!key) { say('Open this page from the bell button in the portal so it receives the server key.', 'err'); document.getElementById('go').disabled = true; return; }
+
+  document.getElementById('go').onclick = async function () {
+    try {
+      say('Working…');
+      var reg = await navigator.serviceWorker.register('sw.js');
+      await navigator.serviceWorker.ready;
+      if ((await Notification.requestPermission()) !== 'granted') { say('Notifications were blocked. Click the lock icon in the address bar, allow notifications, then try again.', 'err'); return; }
+      var old = await reg.pushManager.getSubscription();
+      if (old) await old.unsubscribe(); // always a fresh subscription tied to the current server key
+      var sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(key) });
+      var j = sub.toJSON();
+      var code = btoa(JSON.stringify({ e: j.endpoint, p: j.keys.p256dh, a: j.keys.auth })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      document.getElementById('code').value = code;
+      document.getElementById('step2').hidden = false;
+      say('Allowed. Now do step 2.', 'ok');
+    } catch (e) { say('Failed: ' + e.message, 'err'); }
+  };
+  document.getElementById('copy').onclick = function () {
+    var t = document.getElementById('code'); t.select();
+    try { navigator.clipboard.writeText(t.value); } catch (e) { document.execCommand('copy'); }
+    this.textContent = 'Copied';
+  };
+})();
+</script>
+</body>
+</html>
