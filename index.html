@@ -45,8 +45,19 @@
   }
   if (!key) { say('Open this page from the bell button in the portal so it receives the server key.', 'err'); document.getElementById('go').disabled = true; return; }
 
-  document.getElementById('go').onclick = async function () {
+  var embedded = (window.self !== window.top);
+  var go = document.getElementById('go');
+  if (embedded) { // inside the portal: no extra headings, hand the code to the portal automatically
+    document.body.style.margin = '8px'; document.querySelector('h2').hidden = true; document.querySelector('h2 + p').hidden = true;
+  }
+
+  go.onclick = async function () {
     try {
+      if (embedded && Notification.permission !== 'granted') {
+        say('Browsers only allow the permission question on a full page.', 'err');
+        msg.insertAdjacentHTML('beforeend', ' <a href="' + location.href.split('#')[0] + '" target="_blank" rel="noopener">Open in a new tab</a>, press the button there once, then come back and press it again here.');
+        return;
+      }
       say('Working…');
       var reg = await navigator.serviceWorker.register('sw.js');
       await navigator.serviceWorker.ready;
@@ -58,9 +69,13 @@
       var code = btoa(JSON.stringify({ e: j.endpoint, p: j.keys.p256dh, a: j.keys.auth })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       document.getElementById('code').value = code;
       document.getElementById('step2').hidden = false;
-      say('Allowed. Now do step 2.', 'ok');
+      if (embedded) { say('Allowed. Connecting to the portal…', 'ok'); parent.postMessage({ type: 'slot-code', code: code }, '*'); }
+      else say('Allowed. Now do step 2.', 'ok');
     } catch (e) { say('Failed: ' + e.message, 'err'); }
   };
+  // Permission already given earlier (e.g. via the new-tab step)? Inside the portal, connect without any click.
+  if (embedded && Notification.permission === 'granted') go.click();
+
   document.getElementById('copy').onclick = function () {
     var t = document.getElementById('code'); t.select();
     try { navigator.clipboard.writeText(t.value); } catch (e) { document.execCommand('copy'); }
