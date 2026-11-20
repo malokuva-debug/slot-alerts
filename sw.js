@@ -3,11 +3,11 @@ self.addEventListener('install', function () { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 
 self.addEventListener('push', function (event) {
-  var d = { t: 'Weekly Plan', b: 'A new slot has started.', u: '' };
+  var d = { t: 'Weekly Plan', b: 'A new slot has started.', u: '', g: '' };
   try { if (event.data) d = Object.assign(d, event.data.json()); } catch (e) { /* show the default text */ }
   event.waitUntil(self.registration.showNotification(d.t, {
     body: d.b,
-    tag: 'weekly-plan-slot',   // a new slot replaces the previous alert instead of stacking up
+    tag: d.g || 'weekly-plan-slot',   // slot alerts replace each other; plan-update alerts have their own tag
     renotify: true,
     data: { u: d.u }
   }));
